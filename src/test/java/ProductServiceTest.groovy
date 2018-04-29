@@ -1,29 +1,29 @@
-import io.inputImpl.BarCodeScanner
-import io.outputImpl.LCDDisplay
-import io.outputImpl.Printer
+import io.inputImpl.BarcodeInput
+import io.outputImpl.LcdOutput
+import io.outputImpl.PrinterOutput
 import model.Product
+import model.ScannedItem
 import org.mockito.AdditionalAnswers
 import org.mockito.Mockito
-import repository.ProductRepository
+import repository.history.HistoryRepository
+import repository.product.ProductRepository
 import service.ProductService
 import spock.lang.Specification
 
 
 class ProductServiceTest extends Specification {
-    def "Empty barcode case" () {
+    def "Should successfully return message on empty barcode case" () {
         given:
 
-            BarCodeScanner barCodeScanner = Mockito.mock(BarCodeScanner.class)
-            LCDDisplay lcdDisplay = Mockito.mock(LCDDisplay.class)
-            Printer printer = Mockito.mock(Printer.class)
+            BarcodeInput barcodeInput = Mockito.mock(BarcodeInput.class)
+            LcdOutput lcdDisplay = Mockito.mock(LcdOutput.class)
+            PrinterOutput printer = Mockito.mock(PrinterOutput.class)
             ProductRepository productRepository = Mockito.mock(ProductRepository.class)
+            HistoryRepository historyRepository = Mockito.mock(HistoryRepository.class)
 
-            ProductService productService = new ProductService(productRepository, lcdDisplay, printer, barCodeScanner)
+            ProductService productService = new ProductService(productRepository, historyRepository, lcdDisplay, printer, barcodeInput)
 
-            Product product = new Product("", "", 0.00)
-
-            Mockito.when(productRepository.findProductByBarcode(Mockito.anyString())).thenReturn(product)
-            Mockito.when(lcdDisplay.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
+            Mockito.when(barcodeInput.read()).thenReturn("")
 
         when:
 
@@ -34,20 +34,22 @@ class ProductServiceTest extends Specification {
             response == "Invalid bar-code"
     }
 
-    def "Null product case" () {
+    def "Should successfully return message on null product case" () {
         given:
 
-            BarCodeScanner barCodeScanner = Mockito.mock(BarCodeScanner.class)
-            LCDDisplay lcdDisplay = Mockito.mock(LCDDisplay.class)
-            Printer printer = Mockito.mock(Printer.class)
+            BarcodeInput barcodeInput = Mockito.mock(BarcodeInput.class)
+            LcdOutput lcdOutput = Mockito.mock(LcdOutput.class)
+            PrinterOutput printerOutput = Mockito.mock(PrinterOutput.class)
             ProductRepository productRepository = Mockito.mock(ProductRepository.class)
+            HistoryRepository historyRepository = Mockito.mock(HistoryRepository.class)
 
-            ProductService productService = new ProductService(productRepository, lcdDisplay, printer, barCodeScanner)
+            ProductService productService = new ProductService(productRepository, historyRepository, lcdOutput, printerOutput, barcodeInput)
 
             Product product = null
 
+            Mockito.when(barcodeInput.read()).thenReturn("barcodeOfNonExistingProduct")
             Mockito.when(productRepository.findProductByBarcode(Mockito.anyString())).thenReturn(product)
-            Mockito.when(lcdDisplay.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
+            Mockito.when(lcdOutput.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
 
         when:
 
@@ -58,20 +60,22 @@ class ProductServiceTest extends Specification {
             response == "Product not found"
     }
 
-    def "Correct product case" () {
+    def "Should successfully return message on correct product case" () {
         given:
 
-            BarCodeScanner barCodeScanner = Mockito.mock(BarCodeScanner.class)
-            LCDDisplay lcdDisplay = Mockito.mock(LCDDisplay.class)
-            Printer printer = Mockito.mock(Printer.class)
+            BarcodeInput barcodeInput = Mockito.mock(BarcodeInput.class)
+            LcdOutput lcdOutput = Mockito.mock(LcdOutput.class)
+            PrinterOutput printerOutput = Mockito.mock(PrinterOutput.class)
             ProductRepository productRepository = Mockito.mock(ProductRepository.class)
+            HistoryRepository historyRepository = Mockito.mock(HistoryRepository.class)
 
-            ProductService productService = new ProductService(productRepository, lcdDisplay, printer, barCodeScanner)
+            ProductService productService = new ProductService(productRepository, historyRepository, lcdOutput, printerOutput, barcodeInput)
 
             Product product = new Product("barcode", "name", 100)
 
+            Mockito.when(barcodeInput.read()).thenReturn("barcode")
             Mockito.when(productRepository.findProductByBarcode(Mockito.anyString())).thenReturn(product)
-            Mockito.when(lcdDisplay.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
+            Mockito.when(lcdOutput.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
 
         when:
 
@@ -82,21 +86,24 @@ class ProductServiceTest extends Specification {
             response == product.toString()
     }
 
-    def "Exit code case" () {
+    def "Should successfully return message on exit code case" () {
         given:
 
-            BarCodeScanner barCodeScanner = Mockito.mock(BarCodeScanner.class)
-            LCDDisplay lcdDisplay = Mockito.mock(LCDDisplay.class)
-            Printer printer = Mockito.mock(Printer.class)
+            BarcodeInput barcodeInput = Mockito.mock(BarcodeInput.class)
+            LcdOutput lcdOutput = Mockito.mock(LcdOutput.class)
+            PrinterOutput printerOutput = Mockito.mock(PrinterOutput.class)
             ProductRepository productRepository = Mockito.mock(ProductRepository.class)
+            HistoryRepository historyRepository = Mockito.mock(HistoryRepository.class)
 
-            ProductService productService = new ProductService(productRepository, lcdDisplay, printer, barCodeScanner)
-            productService.getProductsHistory().add(new Product("barcode", "name", 100))
 
-            Product product = new Product( "exit", "empty", 0)
+            ProductService productService = new ProductService(productRepository, historyRepository, lcdOutput, printerOutput, barcodeInput)
 
-            Mockito.when(productRepository.findProductByBarcode(Mockito.anyString())).thenReturn(product)
-            Mockito.when(lcdDisplay.write(Mockito.anyString())).thenAnswer(AdditionalAnswers.<String>returnsFirstArg())
+            def scannedItemHistory = [new ScannedItem(new Product("barcode_1", "name_1", 100),1),
+                                      new ScannedItem(new Product("barcode_2", "name_2", 200),1),
+                                      new ScannedItem(new Product("barcode_3", "name_3", 300),1)]
+
+            Mockito.when(barcodeInput.read()).thenReturn("exit")
+            Mockito.when(historyRepository.findByReceiptId(Mockito.anyInt())).thenReturn(scannedItemHistory)
 
         when:
 
@@ -104,6 +111,6 @@ class ProductServiceTest extends Specification {
 
         then:
 
-            response == "100.0"
+            response == "600.0"
     }
 }

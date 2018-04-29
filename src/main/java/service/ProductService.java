@@ -1,79 +1,81 @@
 package service;
 
-import io.inputImpl.BarCodeScanner;
-import io.outputImpl.LCDDisplay;
-import io.outputImpl.Printer;
+import io.inputImpl.BarcodeInput;
+import io.outputImpl.LcdOutput;
+import io.outputImpl.PrinterOutput;
 import model.Product;
-import repository.ProductRepository;
+import model.ScannedItem;
+import repository.history.HistoryRepository;
+import repository.product.ProductRepository;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 public class ProductService {
     private ProductRepository productRepository;
-    private LCDDisplay lcdDisplay;
-    private Printer printer;
-    private BarCodeScanner barCodeScanner;
-    private ArrayList<Product> productsHistory;
+    private LcdOutput lcdOutput;
+    private PrinterOutput printerOutput;
+    private BarcodeInput barcodeInput;
+    private HistoryRepository historyRepository;
+    private int receiptId;
 
-    public ProductService(ProductRepository productRepository, LCDDisplay lcdDisplay, Printer printer, BarCodeScanner barCodeScanner) {
+    public ProductService(ProductRepository productRepository, HistoryRepository historyRepository, LcdOutput lcdOutput, PrinterOutput printerOutput, BarcodeInput barcodeInput)
+    {
         this.productRepository = productRepository;
-        this.lcdDisplay = lcdDisplay;
-        this.printer = printer;
-        this.barCodeScanner = barCodeScanner;
-        productsHistory = new ArrayList<>();
+        this.historyRepository = historyRepository;
+        this.lcdOutput = lcdOutput;
+        this.printerOutput = printerOutput;
+        this.barcodeInput = barcodeInput;
+        receiptId = 1;
     }
 
-    public List<Product> getProductsHistory() {
-        return productsHistory;
+    public String sale()
+    {
+        return saleProduct(barcodeInput.read());
     }
 
-    public String sale() {
-        return saleProduct(barCodeScanner.read());
+    private String saleProduct(String barcode)
+    {
+       if(barcode.isEmpty())
+       {
+           return "Invalid bar-code";
+       }
+       else if(barcode.equals("exit"))
+       {
+           return totalPrice().map(this::totalPriceOutput)
+                              .orElseThrow(SaleException::new);
+       }
+       else
+       {
+           return Optional.ofNullable(productRepository.findProductByBarcode(barcode))
+                          .map(this::scannedItemOutput)
+                          .orElseGet(() -> lcdOutput.write("Product not found"));
+       }
     }
 
-    private String saleProduct(String barcode) {
-        Optional<Product> productOptional = Optional.ofNullable(productRepository.findProductByBarcode(barcode));
+    private String scannedItemOutput(Product product)
+    {
+        historyRepository.add(new ScannedItem(product, receiptId));
 
-        try {
-            return productOptional.map(this::displayProduct)
-                                  .map(message -> lcdDisplay.write(message))
-                                  .orElseGet(() -> lcdDisplay.write("Product not found"));
-
-        } catch (SaleException saleException) {
-            Optional<Double> optionalTotalPrice = sumPrice();
-
-            if(optionalTotalPrice.isPresent()) {
-                lcdDisplay.write(optionalTotalPrice.get().toString());
-                printer.write(optionalTotalPrice.get().toString() + productsHistory.toString());
-
-                return optionalTotalPrice.get().toString();
-            }
-            else
-            {
-                return "0.00";
-            }
-        }
+        return product.toString();
     }
 
-    private String displayProduct(Product product) {
-        if(product.getBarcode().isEmpty()) {
-            return "Invalid bar-code";
-        }
-        else if(product.getBarcode().equals("exit")) {
-            throw new SaleException();
-        }
-        else {
-            productsHistory.add(product);
-            return product.toString();
-        }
+    private String totalPriceOutput(Double totalPrice)
+    {
+        lcdOutput.write(totalPrice.toString());
+        printerOutput.write(totalPrice.toString() + "\n All products : " + historyRepository.findByReceiptId(receiptId).toString());
+
+        receiptId++;
+
+        return totalPrice.toString();
     }
 
-    private Optional<Double> sumPrice() {
-        return productsHistory.stream()
-                              .map(Product::getPrice)
-                              .reduce((firstPrice, secondPrice) -> firstPrice + secondPrice);
+    private Optional<Double> totalPrice()
+    {
+        return historyRepository.findByReceiptId(receiptId)
+                                .stream()
+                                .map(ScannedItem::getProduct)
+                                .map(Product::getPrice)
+                                .reduce((firstPrice, secondPrice) -> firstPrice + secondPrice);
 
     }
 }
