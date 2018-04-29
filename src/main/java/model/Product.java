@@ -22,4 +22,10 @@ public class Product {
     public Double getPrice() {
         return price;
     }
+
+    @Override
+    public String toString() {
+        return "name : " + getName() +
+               "\nprice : " + getPrice();
+    }
 }
